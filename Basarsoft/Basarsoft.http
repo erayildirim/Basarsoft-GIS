@@ -1,0 +1,6 @@
+@Basarsoft_HostAddress = http://localhost:5216
+
+GET {{Basarsoft_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
