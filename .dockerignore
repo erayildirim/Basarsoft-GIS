@@ -1,0 +1,14 @@
+**/.git
+**/.vs
+**/.vscode
+**/.github
+**/bin
+**/obj
+**/node_modules
+**/*.user
+frontend/build
+Basarsoft/wwwroot
+docs
+*.md
+Dockerfile
+.dockerignore

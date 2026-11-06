@@ -1,0 +1,19 @@
+# Render Blueprint - https://render.com/docs/blueprint-spec
+# Deploys the API + React UI as a single Docker web service on the free plan.
+# The PostgreSQL/PostGIS database is external (e.g. Neon free tier) - see README "Deployment".
+services:
+  - type: web
+    name: basarsoft-gis
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # postgresql://USER:PASSWORD@HOST/DBNAME?sslmode=require
+      - key: DATABASE_URL
+        sync: false
+      # Fill an empty database with sample Turkish landmarks on first start.
+      - key: Database__SeedDemoData
+        value: "true"
