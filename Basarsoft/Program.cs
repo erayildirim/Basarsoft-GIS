@@ -1,52 +1,64 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using System;
-using Basarsoft.Interfaces;
-using Basarsoft.Services;
 using Basarsoft;
-using System.Text.Json.Serialization;
+using Basarsoft.Interfaces;
 using Basarsoft.Repositories.Implementations;
 using Basarsoft.Repositories.Interfaces;
+using Basarsoft.Services;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals;
-    });
-
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
-        o => o.UseNetTopologySuite())
-);
-
-//DI
-builder.Services.AddScoped<IPointService, PointService>();
-builder.Services.AddScoped(typeof(IRepository<>), typeof(GenericRepository<>));
-builder.Services.AddScoped<IPointRepository, PointRepository>();
-builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-
+// Add services to the container.
+builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddCors(opts =>
-  opts.AddDefaultPolicy(policy =>
-    policy.AllowAnyOrigin()
-          .AllowAnyHeader()
-          .AllowAnyMethod()
-  )
-);
+
+// Logging configuration
+builder.Services.AddLogging(config =>
+{
+    config.AddConsole();
+    config.AddDebug();
+    config.SetMinimumLevel(LogLevel.Information);
+});
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp", policy =>
+    {
+        policy.WithOrigins("http://localhost:7270")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+// Database configuration
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+{
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
+        o => o.UseNetTopologySuite());
+});
+
+// Repository registrations
+builder.Services.AddScoped<IPointRepository, PointRepository>();
+builder.Services.AddScoped<ILineRepository, LineRepository>();
+builder.Services.AddScoped<IPolygonRepository, PolygonRepository>();
+
+// Generic repository registrations
+builder.Services.AddScoped<IRepository<Basarsoft.Models.Point>, PointRepository>();
+builder.Services.AddScoped<IRepository<Basarsoft.Models.Line>, LineRepository>();
+builder.Services.AddScoped<IRepository<Basarsoft.Models.Polygon>, PolygonRepository>();
+
+// Service registrations
+builder.Services.AddScoped<IPointService, PointService>();
+builder.Services.AddScoped<ILineService, LineService>();
+builder.Services.AddScoped<IPolygonService, PolygonService>();
+builder.Services.AddScoped<ISearchService, SearchService>();
+
+// Unit of Work
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    dbContext.Database.Migrate();
-}
-
+// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -55,10 +67,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// Use CORS
+app.UseCors("AllowReactApp");
+
 app.UseAuthorization();
 
 app.MapControllers();
-
-app.UseCors();
 
 app.Run();
