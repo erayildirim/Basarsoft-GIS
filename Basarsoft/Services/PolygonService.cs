@@ -2,9 +2,9 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Basarsoft.Dtos;
+using Basarsoft.Helpers;
 using Basarsoft.Interfaces;
 using Basarsoft.Models;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Basarsoft.Services
@@ -25,10 +25,10 @@ namespace Basarsoft.Services
             try
             {
                 if (string.IsNullOrWhiteSpace(dto.Name))
-                    return new Response<PolygonReadDto>("İsim alanı boş olamaz.");
+                    return new Response<PolygonReadDto>("Name cannot be empty.");
 
                 if (string.IsNullOrWhiteSpace(dto.Wkt))
-                    return new Response<PolygonReadDto>("WKT verisi boş olamaz.");
+                    return new Response<PolygonReadDto>("WKT cannot be empty.");
 
                 var e = new Polygon
                 {
@@ -36,17 +36,21 @@ namespace Basarsoft.Services
                     Location = dto.Geometry
                 };
 
+                var error = GeometryValidator.Validate(e.Location);
+                if (error != null)
+                    return new Response<PolygonReadDto>(error);
+
                 await _repo.AddAsync(e);
                 await _repo.SaveChangesAsync();
                 return new Response<PolygonReadDto>(PolygonReadDto.FromEntity(e));
             }
             catch (System.ArgumentException ex)
             {
-                return new Response<PolygonReadDto>($"WKT format hatası: {ex.Message}");
+                return new Response<PolygonReadDto>(ex.Message);
             }
             catch (System.Exception ex)
             {
-                return new Response<PolygonReadDto>($"Sunucu hatası: {ex.Message}");
+                return new Response<PolygonReadDto>($"Server error: {ex.Message}");
             }
         }
 
@@ -55,7 +59,7 @@ namespace Basarsoft.Services
             try
             {
                 if (string.IsNullOrWhiteSpace(dto.Name))
-                    return new Response<PolygonReadDto>("İsim alanı boş olamaz.");
+                    return new Response<PolygonReadDto>("Name cannot be empty.");
 
                 var wkt = dto.ToWkt();
                 var createDto = new PolygonCreateDto { Name = dto.Name, Wkt = wkt };
@@ -64,7 +68,7 @@ namespace Basarsoft.Services
             }
             catch (System.Exception ex)
             {
-                return new Response<PolygonReadDto>($"Manuel polygon ekleme hatası: {ex.Message}");
+                return new Response<PolygonReadDto>($"Manual polygon entry error: {ex.Message}");
             }
         }
 
@@ -81,7 +85,7 @@ namespace Basarsoft.Services
             }
             catch (System.Exception ex)
             {
-                return new Response<List<PolygonReadDto>>($"Veri getirme hatası: {ex.Message}");
+                return new Response<List<PolygonReadDto>>($"Data fetch error: {ex.Message}");
             }
         }
 
@@ -93,7 +97,8 @@ namespace Basarsoft.Services
 
                 if (!string.IsNullOrWhiteSpace(request.SearchTerm))
                 {
-                    query = query.Where(p => p.Name.Contains(request.SearchTerm));
+                    var pattern = SearchHelper.ContainsPattern(request.SearchTerm);
+                    query = query.Where(p => EF.Functions.ILike(p.Name, pattern, SearchHelper.EscapeCharacter));
                 }
 
                 var totalCount = await query.CountAsync();
@@ -116,7 +121,7 @@ namespace Basarsoft.Services
             }
             catch (System.Exception ex)
             {
-                return new Response<PagedResponse<PolygonReadDto>>($"Sayfalı veri getirme hatası: {ex.Message}");
+                return new Response<PagedResponse<PolygonReadDto>>($"Paged data error: {ex.Message}");
             }
         }
 
@@ -125,12 +130,12 @@ namespace Basarsoft.Services
             try
             {
                 var e = await _repo.GetByIdAsync(id);
-                if (e == null) return new Response<PolygonReadDto>($"ID {id} bulunamadı.");
+                if (e == null) return new Response<PolygonReadDto>($"Record with ID {id} was not found.");
                 return new Response<PolygonReadDto>(PolygonReadDto.FromEntity(e));
             }
             catch (System.Exception ex)
             {
-                return new Response<PolygonReadDto>($"Veri getirme hatası: {ex.Message}");
+                return new Response<PolygonReadDto>($"Data fetch error: {ex.Message}");
             }
         }
 
@@ -139,16 +144,20 @@ namespace Basarsoft.Services
             try
             {
                 if (string.IsNullOrWhiteSpace(dto.Name))
-                    return new Response<PolygonReadDto>("İsim alanı boş olamaz.");
+                    return new Response<PolygonReadDto>("Name cannot be empty.");
 
                 if (string.IsNullOrWhiteSpace(dto.Wkt))
-                    return new Response<PolygonReadDto>("WKT verisi boş olamaz.");
+                    return new Response<PolygonReadDto>("WKT cannot be empty.");
 
                 var e = await _repo.GetByIdAsync(id);
-                if (e == null) return new Response<PolygonReadDto>($"ID {id} bulunamadı.");
+                if (e == null) return new Response<PolygonReadDto>($"Record with ID {id} was not found.");
 
                 e.Name = dto.Name.Trim();
                 e.Location = dto.Geometry;
+
+                var error = GeometryValidator.Validate(e.Location);
+                if (error != null)
+                    return new Response<PolygonReadDto>(error);
 
                 _repo.Update(e);
                 await _repo.SaveChangesAsync();
@@ -156,11 +165,11 @@ namespace Basarsoft.Services
             }
             catch (System.ArgumentException ex)
             {
-                return new Response<PolygonReadDto>($"WKT format hatası: {ex.Message}");
+                return new Response<PolygonReadDto>(ex.Message);
             }
             catch (System.Exception ex)
             {
-                return new Response<PolygonReadDto>($"Güncelleme hatası: {ex.Message}");
+                return new Response<PolygonReadDto>($"Update error: {ex.Message}");
             }
         }
 
@@ -170,7 +179,7 @@ namespace Basarsoft.Services
             {
                 var e = await _repo.GetByIdAsync(id);
                 if (e == null)
-                    return new Response<object>($"ID {id} bulunamadı.");
+                    return new Response<object>($"Record with ID {id} was not found.");
 
                 _repo.Delete(e);
                 await _repo.SaveChangesAsync();
@@ -178,13 +187,13 @@ namespace Basarsoft.Services
                 return new Response<object>(new
                 {
                     id = id,
-                    message = "Polygon başarıyla silindi",
+                    message = "Polygon deleted successfully",
                     type = "polygon"
                 });
             }
             catch (System.Exception ex)
             {
-                return new Response<object>($"Silme hatası: {ex.Message}");
+                return new Response<object>($"Delete error: {ex.Message}");
             }
         }
     }

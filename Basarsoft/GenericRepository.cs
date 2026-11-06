@@ -11,7 +11,7 @@ namespace Basarsoft
             _context = context;
         }
 
-        public async Task<T> GetByIdAsync(int id) =>
+        public async Task<T?> GetByIdAsync(int id) =>
             await _context.Set<T>().FindAsync(id);
 
         public async Task<IEnumerable<T>> GetAllAsync() =>

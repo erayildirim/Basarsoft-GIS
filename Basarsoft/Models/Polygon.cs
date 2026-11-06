@@ -6,9 +6,9 @@ namespace Basarsoft.Models
     public class Polygon
     {
         public int Id { get; set; }
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         [Column(TypeName = "geometry")]
-        public NetTopologySuite.Geometries.Polygon Location { get; set; }
+        public NetTopologySuite.Geometries.Polygon Location { get; set; } = null!;
     }
 }

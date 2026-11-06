@@ -1,28 +1,28 @@
-namespace Basarsoft.Dtos
+﻿namespace Basarsoft.Dtos
 {
     public class ManualPointDto
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
         public double Latitude { get; set; }
         public double Longitude { get; set; }
 
-        public string ToWkt() => $"POINT({Longitude} {Latitude})";
+        public string ToWkt() => FormattableString.Invariant($"POINT({Longitude} {Latitude})");
     }
 
     public class ManualLineDto
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
         public double StartLatitude { get; set; }
         public double StartLongitude { get; set; }
         public double EndLatitude { get; set; }
         public double EndLongitude { get; set; }
 
-        public string ToWkt() => $"LINESTRING({StartLongitude} {StartLatitude}, {EndLongitude} {EndLatitude})";
+        public string ToWkt() => FormattableString.Invariant($"LINESTRING({StartLongitude} {StartLatitude}, {EndLongitude} {EndLatitude})");
     }
 
     public class ManualPolygonDto
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
         public List<CoordinateDto> Coordinates { get; set; } = new List<CoordinateDto>();
 
         public string ToWkt()
@@ -37,7 +37,7 @@ namespace Basarsoft.Dtos
                 coords.Add(coords.First());
             }
 
-            var coordStrings = coords.Select(c => $"{c.Longitude} {c.Latitude}");
+            var coordStrings = coords.Select(c => FormattableString.Invariant($"{c.Longitude} {c.Latitude}"));
             return $"POLYGON(({string.Join(", ", coordStrings)}))";
         }
     }

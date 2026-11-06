@@ -6,8 +6,8 @@ namespace Basarsoft.Dtos
     public class PointReadDto
     {
         public int Id { get; set; }
-        public string Name { get; set; }
-        public string Wkt { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Wkt { get; set; } = string.Empty;
 
         public static PointReadDto FromEntity(Models.Point p)
         {

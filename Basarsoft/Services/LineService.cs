@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using Basarsoft.Dtos;
+using Basarsoft.Helpers;
 using Basarsoft.Interfaces;
 using Basarsoft.Models;
 using Microsoft.EntityFrameworkCore;
@@ -24,10 +25,10 @@ namespace Basarsoft.Services
             try
             {
                 if (string.IsNullOrWhiteSpace(dto.Name))
-                    return new Response<LineReadDto>("İsim alanı boş olamaz.");
+                    return new Response<LineReadDto>("Name cannot be empty.");
 
                 if (string.IsNullOrWhiteSpace(dto.Wkt))
-                    return new Response<LineReadDto>("WKT verisi boş olamaz.");
+                    return new Response<LineReadDto>("WKT cannot be empty.");
 
                 var e = new Line
                 {
@@ -35,17 +36,21 @@ namespace Basarsoft.Services
                     Location = dto.Geometry
                 };
 
+                var error = GeometryValidator.Validate(e.Location);
+                if (error != null)
+                    return new Response<LineReadDto>(error);
+
                 await _repo.AddAsync(e);
                 await _repo.SaveChangesAsync();
                 return new Response<LineReadDto>(LineReadDto.FromEntity(e));
             }
             catch (System.ArgumentException ex)
             {
-                return new Response<LineReadDto>($"WKT format hatası: {ex.Message}");
+                return new Response<LineReadDto>(ex.Message);
             }
             catch (System.Exception ex)
             {
-                return new Response<LineReadDto>($"Sunucu hatası: {ex.Message}");
+                return new Response<LineReadDto>($"Server error: {ex.Message}");
             }
         }
 
@@ -54,7 +59,7 @@ namespace Basarsoft.Services
             try
             {
                 if (string.IsNullOrWhiteSpace(dto.Name))
-                    return new Response<LineReadDto>("İsim alanı boş olamaz.");
+                    return new Response<LineReadDto>("Name cannot be empty.");
 
                 var wkt = dto.ToWkt();
                 var createDto = new LineCreateDto { Name = dto.Name, Wkt = wkt };
@@ -63,7 +68,7 @@ namespace Basarsoft.Services
             }
             catch (System.Exception ex)
             {
-                return new Response<LineReadDto>($"Manuel line ekleme hatası: {ex.Message}");
+                return new Response<LineReadDto>($"Manual line entry error: {ex.Message}");
             }
         }
 
@@ -80,7 +85,7 @@ namespace Basarsoft.Services
             }
             catch (System.Exception ex)
             {
-                return new Response<List<LineReadDto>>($"Veri getirme hatası: {ex.Message}");
+                return new Response<List<LineReadDto>>($"Data fetch error: {ex.Message}");
             }
         }
 
@@ -92,7 +97,8 @@ namespace Basarsoft.Services
 
                 if (!string.IsNullOrWhiteSpace(request.SearchTerm))
                 {
-                    query = query.Where(l => l.Name.Contains(request.SearchTerm));
+                    var pattern = SearchHelper.ContainsPattern(request.SearchTerm);
+                    query = query.Where(l => EF.Functions.ILike(l.Name, pattern, SearchHelper.EscapeCharacter));
                 }
 
                 var totalCount = await query.CountAsync();
@@ -115,7 +121,7 @@ namespace Basarsoft.Services
             }
             catch (System.Exception ex)
             {
-                return new Response<PagedResponse<LineReadDto>>($"Sayfalı veri getirme hatası: {ex.Message}");
+                return new Response<PagedResponse<LineReadDto>>($"Paged data error: {ex.Message}");
             }
         }
 
@@ -124,12 +130,12 @@ namespace Basarsoft.Services
             try
             {
                 var e = await _repo.GetByIdAsync(id);
-                if (e == null) return new Response<LineReadDto>($"ID {id} bulunamadı.");
+                if (e == null) return new Response<LineReadDto>($"Record with ID {id} was not found.");
                 return new Response<LineReadDto>(LineReadDto.FromEntity(e));
             }
             catch (System.Exception ex)
             {
-                return new Response<LineReadDto>($"Veri getirme hatası: {ex.Message}");
+                return new Response<LineReadDto>($"Data fetch error: {ex.Message}");
             }
         }
 
@@ -138,16 +144,20 @@ namespace Basarsoft.Services
             try
             {
                 if (string.IsNullOrWhiteSpace(dto.Name))
-                    return new Response<LineReadDto>("İsim alanı boş olamaz.");
+                    return new Response<LineReadDto>("Name cannot be empty.");
 
                 if (string.IsNullOrWhiteSpace(dto.Wkt))
-                    return new Response<LineReadDto>("WKT verisi boş olamaz.");
+                    return new Response<LineReadDto>("WKT cannot be empty.");
 
                 var e = await _repo.GetByIdAsync(id);
-                if (e == null) return new Response<LineReadDto>($"ID {id} bulunamadı.");
+                if (e == null) return new Response<LineReadDto>($"Record with ID {id} was not found.");
 
                 e.Name = dto.Name.Trim();
                 e.Location = dto.Geometry;
+
+                var error = GeometryValidator.Validate(e.Location);
+                if (error != null)
+                    return new Response<LineReadDto>(error);
 
                 _repo.Update(e);
                 await _repo.SaveChangesAsync();
@@ -155,11 +165,11 @@ namespace Basarsoft.Services
             }
             catch (System.ArgumentException ex)
             {
-                return new Response<LineReadDto>($"WKT format hatası: {ex.Message}");
+                return new Response<LineReadDto>(ex.Message);
             }
             catch (System.Exception ex)
             {
-                return new Response<LineReadDto>($"Güncelleme hatası: {ex.Message}");
+                return new Response<LineReadDto>($"Update error: {ex.Message}");
             }
         }
 
@@ -169,7 +179,7 @@ namespace Basarsoft.Services
             {
                 var e = await _repo.GetByIdAsync(id);
                 if (e == null)
-                    return new Response<object>($"ID {id} bulunamadı.");
+                    return new Response<object>($"Record with ID {id} was not found.");
 
                 _repo.Delete(e);
                 await _repo.SaveChangesAsync();
@@ -177,13 +187,13 @@ namespace Basarsoft.Services
                 return new Response<object>(new
                 {
                     id = id,
-                    message = "Line başarıyla silindi",
+                    message = "Line deleted successfully",
                     type = "line"
                 });
             }
             catch (System.Exception ex)
             {
-                return new Response<object>($"Silme hatası: {ex.Message}");
+                return new Response<object>($"Delete error: {ex.Message}");
             }
         }
     }

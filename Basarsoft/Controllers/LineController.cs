@@ -29,12 +29,12 @@ namespace Basarsoft.Controllers
 
                 var r = await _svc.AddLineAsync(dto);
                 if (!r.Success) return BadRequest(r);
-                return CreatedAtAction(nameof(GetById), new { id = r.Data.Id }, r.Data);
+                return CreatedAtAction(nameof(GetById), new { id = r.Data!.Id }, r.Data);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error adding line: {@Dto}", dto);
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -50,12 +50,12 @@ namespace Basarsoft.Controllers
 
                 var r = await _svc.AddManualLineAsync(dto);
                 if (!r.Success) return BadRequest(r);
-                return CreatedAtAction(nameof(GetById), new { id = r.Data.Id }, r.Data);
+                return CreatedAtAction(nameof(GetById), new { id = r.Data!.Id }, r.Data);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error adding manual line: {@Dto}", dto);
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -71,7 +71,7 @@ namespace Basarsoft.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting all lines");
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -87,7 +87,7 @@ namespace Basarsoft.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting paged lines: {@Request}", request);
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -103,7 +103,7 @@ namespace Basarsoft.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting line by id: {Id}", id);
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -124,7 +124,7 @@ namespace Basarsoft.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating line {Id}: {@Dto}", id, dto);
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -150,7 +150,7 @@ namespace Basarsoft.Controllers
                 return StatusCode(500, new
                 {
                     success = false,
-                    message = "Sunucu hatası: " + ex.Message
+                    message = "Server error: " + ex.Message
                 });
             }
         }

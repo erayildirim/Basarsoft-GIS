@@ -6,8 +6,8 @@ namespace Basarsoft.Dtos
     public class PolygonReadDto
     {
         public int Id { get; set; }
-        public string Name { get; set; }
-        public string Wkt { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Wkt { get; set; } = string.Empty;
 
         public static PolygonReadDto FromEntity(Polygon e) => new PolygonReadDto
         {

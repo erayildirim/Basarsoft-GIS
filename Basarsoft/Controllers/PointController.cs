@@ -31,12 +31,12 @@ namespace Basarsoft.Controllers
                 if (!result.Success)
                     return BadRequest(result);
 
-                return CreatedAtAction(nameof(GetById), new { id = result.Data.Id }, result.Data);
+                return CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result.Data);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error adding point: {@Dto}", dto);
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -54,12 +54,12 @@ namespace Basarsoft.Controllers
                 if (!result.Success)
                     return BadRequest(result);
 
-                return CreatedAtAction(nameof(GetById), new { id = result.Data.Id }, result.Data);
+                return CreatedAtAction(nameof(GetById), new { id = result.Data!.Id }, result.Data);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error adding manual point: {@Dto}", dto);
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -76,7 +76,7 @@ namespace Basarsoft.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting all points");
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -93,7 +93,7 @@ namespace Basarsoft.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting paged points: {@Request}", request);
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -110,7 +110,7 @@ namespace Basarsoft.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting point by id: {Id}", id);
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -132,7 +132,7 @@ namespace Basarsoft.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error updating point {Id}: {@Dto}", id, dto);
-                return StatusCode(500, new { message = "Sunucu hatası: " + ex.Message });
+                return StatusCode(500, new { message = "Server error: " + ex.Message });
             }
         }
 
@@ -158,7 +158,7 @@ namespace Basarsoft.Controllers
                 return StatusCode(500, new
                 {
                     success = false,
-                    message = "Sunucu hatası: " + ex.Message
+                    message = "Server error: " + ex.Message
                 });
             }
         }

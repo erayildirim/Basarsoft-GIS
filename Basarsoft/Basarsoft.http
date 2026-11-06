@@ -1,6 +1,58 @@
-@Basarsoft_HostAddress = http://localhost:5216
+@Basarsoft_HostAddress = http://localhost:5222
 
-GET {{Basarsoft_HostAddress}}/weatherforecast/
+### List all points
+GET {{Basarsoft_HostAddress}}/api/point
 Accept: application/json
 
-###
+### Paged points (page 1, 10 per page, filtered by name)
+GET {{Basarsoft_HostAddress}}/api/point/paged?page=1&pageSize=10&searchTerm=tower
+Accept: application/json
+
+### Add a point from WKT (lon lat)
+POST {{Basarsoft_HostAddress}}/api/point
+Content-Type: application/json
+
+{
+  "name": "Galata Tower",
+  "wkt": "POINT(28.9742 41.0256)"
+}
+
+### Add a point from latitude / longitude
+POST {{Basarsoft_HostAddress}}/api/point/manual
+Content-Type: application/json
+
+{
+  "name": "Anıtkabir",
+  "latitude": 39.9250,
+  "longitude": 32.8369
+}
+
+### Add a line
+POST {{Basarsoft_HostAddress}}/api/line
+Content-Type: application/json
+
+{
+  "name": "Ankara - Kayseri",
+  "wkt": "LINESTRING(32.8597 39.9334, 35.4826 38.7205)"
+}
+
+### Add a polygon manually (ring is closed automatically)
+POST {{Basarsoft_HostAddress}}/api/polygon/manual
+Content-Type: application/json
+
+{
+  "name": "Cappadocia Region",
+  "coordinates": [
+    { "latitude": 38.75, "longitude": 34.70 },
+    { "latitude": 38.75, "longitude": 35.00 },
+    { "latitude": 38.55, "longitude": 35.00 },
+    { "latitude": 38.55, "longitude": 34.70 }
+  ]
+}
+
+### Search all geometry types (case-insensitive)
+GET {{Basarsoft_HostAddress}}/api/search?searchTerm=lake&maxResults=20
+Accept: application/json
+
+### Health check
+GET {{Basarsoft_HostAddress}}/health

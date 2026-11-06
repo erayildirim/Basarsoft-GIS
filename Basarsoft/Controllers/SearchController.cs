@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+ï»¿using Microsoft.AspNetCore.Mvc;
 using Basarsoft.Interfaces;
 
 namespace Basarsoft.Controllers
@@ -40,7 +40,7 @@ namespace Basarsoft.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error searching: {SearchTerm}", searchTerm);
-                return StatusCode(500, new { message = "Arama hatasý: " + ex.Message });
+                return StatusCode(500, new { message = "Search error: " + ex.Message });
             }
         }
     }
