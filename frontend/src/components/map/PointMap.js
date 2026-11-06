@@ -1,4 +1,4 @@
-﻿import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
+import React, { useRef, useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import Map from 'ol/Map';
 import View from 'ol/View';
 import TileLayer from 'ol/layer/Tile';
@@ -6,14 +6,16 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import OSM from 'ol/source/OSM';
 import WKT from 'ol/format/WKT';
-import { fromLonLat, toLonLat } from 'ol/proj';
+import { fromLonLat } from 'ol/proj';
 import { Style, Stroke, Fill, Circle as CircleStyle, Text } from 'ol/style';
 import Select from 'ol/interaction/Select';
 import Modify from 'ol/interaction/Modify';
 import Draw from 'ol/interaction/Draw';
 import { click } from 'ol/events/condition';
+import { getErrorMessage } from '../../api/api';
 import Overlay from 'ol/Overlay';
 import MultiPoint from 'ol/geom/MultiPoint';
+import 'ol/ol.css';
 
 const COLORS = {
     point: '#3b82f6',
@@ -26,6 +28,7 @@ const COLORS = {
     selectedHover: '#dc2626',
     text: '#1f2937',
     white: '#ffffff',
+    danger: '#ef4444',
     shadow: 'rgba(0, 0, 0, 0.15)'
 };
 
@@ -157,13 +160,25 @@ const convertGeometryToWKT = (geometry) => {
         const clonedGeom = geometry.clone();
         clonedGeom.transform('EPSG:3857', 'EPSG:4326');
         const wkt = wktFormat.writeGeometry(clonedGeom);
-        console.log('Converted to WKT:', wkt);
         return wkt;
     } catch (error) {
         console.error('WKT conversion error:', error);
         throw new Error('Geometry could not be converted to WKT format: ' + error.message);
     }
 };
+
+// Where to anchor a popup for a geometry: the point itself, the middle vertex of a line,
+// or an interior point of a polygon.
+const getPopupAnchor = geom => {
+    if (geom.getType() === 'Point') return geom.getCoordinates();
+    if (geom.getType() === 'LineString') {
+        const coords = geom.getCoordinates();
+        return coords[Math.floor(coords.length / 2)];
+    }
+    return geom.getInteriorPoint().getCoordinates();
+};
+
+const TYPE_COLORS = { point: COLORS.point, line: COLORS.line, polygon: COLORS.polygon };
 
 const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, onUpdate, selectedType }, ref) => {
     const mapRef = useRef(null);
@@ -185,16 +200,13 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
     const [editingFeature, setEditingFeature] = useState(null);
     const [isDrawing, setIsDrawing] = useState(false);
 
-    useEffect(() => {
-        console.log('POPUP STATE CHANGE:', {
-            showAddPopup,
-            showEditPopup,
-            isDrawing,
-            hasNewFeature: !!newFeature,
-            hasEditingFeature: !!editingFeature,
-            editingFeatureId: editingFeature?.get('id')
-        });
-    }, [showAddPopup, showEditPopup, isDrawing, newFeature, editingFeature]);
+    // OpenLayers event handlers are registered once, so they read the latest state via refs
+    // instead of the (stale) values captured on the first render.
+    const showAddPopupRef = useRef(false);
+    const isDrawingRef = useRef(false);
+    const originalGeometry = useRef(null);
+    useEffect(() => { showAddPopupRef.current = showAddPopup; }, [showAddPopup]);
+    useEffect(() => { isDrawingRef.current = isDrawing; }, [isDrawing]);
 
     useEffect(() => {
         if (!map.current) {
@@ -244,7 +256,7 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
             map.current.addInteraction(modify.current);
 
             select.current.on('select', e => {
-                if (showAddPopup || isDrawing) {
+                if (showAddPopupRef.current || isDrawingRef.current) {
                     e.selected.forEach(feat => {
                         select.current.getFeatures().remove(feat);
                     });
@@ -259,58 +271,33 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
                         return;
                     }
 
-                    setShowAddPopup(false);
-                    setNewFeature(null);
-                    addOverlay.current.setPosition(undefined);
-
-                    setEditingFeature(feat);
-                    setPopupName(feat.get('name') || '');
-                    setError('');
-
-                    const geom = feat.getGeometry();
-                    let coord;
-                    if (geom.getType() === 'Point') {
-                        coord = geom.getCoordinates();
-                    } else if (geom.getType() === 'LineString') {
-                        const coords = geom.getCoordinates();
-                        coord = coords[Math.floor(coords.length / 2)];
-                    } else {
-                        coord = geom.getInteriorPoint().getCoordinates();
-                    }
-                    editOverlay.current.setPosition(coord);
-                    setShowEditPopup(true);
+                    openEditPopup(feat);
                 } else {
                     cancelEdit();
                 }
             });
 
-            modify.current.on('modifyend', () => {
-                if (editingFeature) {
-                    const geom = editingFeature.getGeometry();
-                    let coord;
-                    if (geom.getType() === 'Point') {
-                        coord = geom.getCoordinates();
-                    } else if (geom.getType() === 'LineString') {
-                        const coords = geom.getCoordinates();
-                        coord = coords[Math.floor(coords.length / 2)];
-                    } else {
-                        coord = geom.getInteriorPoint().getCoordinates();
-                    }
-                    editOverlay.current.setPosition(coord);
+            // Keep the edit popup next to the feature while its vertices are dragged.
+            modify.current.on('modifyend', e => {
+                const feat = e.features.item(0);
+                if (feat) {
+                    editOverlay.current.setPosition(getPopupAnchor(feat.getGeometry()));
                 }
             });
         }
+        // The map is created once; handlers read changing state through refs.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
         if (!vectorSource.current) return;
         vectorSource.current.clear();
+        originalGeometry.current = null;
         const wktFormat = new WKT();
 
         const addFeatures = (items, type) => {
             items.forEach(item => {
                 try {
-                    console.log(`Loading ${type}:`, item);
                     const feat = wktFormat.readFeature(item.wkt, {
                         dataProjection: 'EPSG:4326',
                         featureProjection: 'EPSG:3857'
@@ -321,19 +308,16 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
                     feat.set('featureType', type);
                     feat.set('originalData', item);
                     vectorSource.current.addFeature(feat);
-                    console.log(`Successfully loaded ${type} with ID ${item.id}`);
                 } catch (err) {
                     console.error(`${type} WKT parse error for item ${item.id}:`, err, 'WKT:', item.wkt);
                 }
             });
         };
 
-        console.log('Loading features - Points:', points.length, 'Lines:', lines.length, 'Polygons:', polygons.length);
         addFeatures(points, 'point');
         addFeatures(lines, 'line');
         addFeatures(polygons, 'polygon');
 
-        console.log('Total features loaded:', vectorSource.current.getFeatures().length);
     }, [points, lines, polygons]);
 
     useEffect(() => {
@@ -346,6 +330,8 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
                 cancelDrawing();
             }
         }
+        // Only reset when the geometry type changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedType]);
 
     useImperativeHandle(ref, () => ({
@@ -356,6 +342,9 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
             if (feat) {
                 select.current.getFeatures().clear();
                 select.current.getFeatures().push(feat);
+                // A programmatic selection fires no 'select' event (and clicking an already
+                // selected feature fires none either), so open the edit popup here.
+                openEditPopup(feat);
                 const extent = feat.getGeometry().getExtent();
                 map.current.getView().fit(extent, {
                     padding: [100, 100, 100, 100],
@@ -411,19 +400,8 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
             vectorSource.current.removeFeature(feat);
             setNewFeature(feat);
 
-            const geom = feat.getGeometry();
-            let coord;
-            if (geom.getType() === 'Point') {
-                coord = geom.getCoordinates();
-            } else if (geom.getType() === 'LineString') {
-                const coords = geom.getCoordinates();
-                coord = coords[coords.length - 1];
-            } else {
-                coord = geom.getInteriorPoint().getCoordinates();
-            }
-
             setShowEditPopup(false);
-            addOverlay.current.setPosition(coord);
+            addOverlay.current.setPosition(getPopupAnchor(feat.getGeometry()));
             setShowAddPopup(true);
 
             map.current.addInteraction(select.current);
@@ -448,7 +426,35 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
         map.current.addInteraction(modify.current);
     };
 
+    // Puts the geometry of the feature being edited back to what it was when it was selected.
+    function restoreOriginalGeometry() {
+        if (originalGeometry.current) {
+            const { feature, geometry } = originalGeometry.current;
+            feature.setGeometry(geometry);
+            originalGeometry.current = null;
+        }
+    }
+
+    // Shows the edit popup for an existing feature (selected on the map or via "View").
+    function openEditPopup(feat) {
+        // Undo unsaved geometry changes of a previously selected feature.
+        restoreOriginalGeometry();
+        originalGeometry.current = { feature: feat, geometry: feat.getGeometry().clone() };
+
+        setShowAddPopup(false);
+        setNewFeature(null);
+        addOverlay.current.setPosition(undefined);
+
+        setEditingFeature(feat);
+        setPopupName(feat.get('name') || '');
+        setError('');
+
+        editOverlay.current.setPosition(getPopupAnchor(feat.getGeometry()));
+        setShowEditPopup(true);
+    }
+
     const cancelEdit = () => {
+        restoreOriginalGeometry();
         setShowEditPopup(false);
         setEditingFeature(null);
         setPopupName('');
@@ -484,7 +490,6 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
         try {
             setError('');
             const wktGeom = convertGeometryToWKT(newFeature.getGeometry());
-            console.log('Adding feature:', { name: popupName.trim(), wkt: wktGeom, type: selectedType });
 
             await onAdd(popupName.trim(), wktGeom);
 
@@ -495,11 +500,7 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
 
         } catch (err) {
             console.error('Add error:', err);
-            const errorMessage = err.response?.data?.message ||
-                err.response?.data ||
-                err.message ||
-                'Feature could not be added';
-            setError(errorMessage);
+            setError(getErrorMessage(err, 'Feature could not be added'));
         }
     };
 
@@ -519,7 +520,6 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
             const id = editingFeature.get('id');
             const featureType = editingFeature.get('type') || editingFeature.get('featureType');
 
-            console.log('Updating feature:', { id, featureType, name: popupName.trim(), wkt: wktGeom });
 
             if (!id) {
                 setError('Feature ID not found');
@@ -532,14 +532,11 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
             }
 
             await onUpdate(id, popupName.trim(), wktGeom, featureType);
+            originalGeometry.current = null; // saved: keep the new geometry
             cancelEdit();
         } catch (err) {
             console.error('Update error:', err);
-            const errorMessage = err.response?.data?.message ||
-                err.response?.data ||
-                err.message ||
-                'Feature could not be updated';
-            setError(errorMessage);
+            setError(getErrorMessage(err, 'Feature could not be updated'));
         }
     };
 
@@ -551,26 +548,7 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
             <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
 
-            {process.env.NODE_ENV === 'development' && (
-                <div style={{
-                    position: 'absolute',
-                    top: 10,
-                    right: 10,
-                    backgroundColor: 'rgba(0,0,0,0.8)',
-                    color: 'white',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    fontSize: '12px',
-                    fontFamily: 'monospace',
-                    zIndex: 1001
-                }}>
-                    🐛 ADD: {showAddPopup ? '✅' : '❌'} |
-                    EDIT: {showEditPopup ? '✅' : '❌'} |
-                    DRAW: {isDrawing ? '✅' : '❌'}
-                </div>
-            )}
-
-            <div style={{
+            <div className="map-controls" style={{
                 position: 'absolute',
                 top: 20,
                 left: 20,
@@ -594,7 +572,7 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
                         fontSize: '14px',
                         fontWeight: 600,
                         width: '100%',
-                        backgroundColor: isDrawing ? COLORS.danger : COLORS.point,
+                        backgroundColor: isDrawing ? COLORS.danger : TYPE_COLORS[selectedType],
                         color: 'white',
                         transition: 'all 0.2s'
                     }}
@@ -615,14 +593,15 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
                         color: '#92400e'
                     }}>
                         {selectedType === 'point' && '👆 Click on the map to add a point'}
-                        {selectedType === 'line' && '👆 Click 2 points on the map to create a line'}
-                        {selectedType === 'polygon' && '👆 Draw multiple lines on the map to create a polygon'}
+                        {selectedType === 'line' && '👆 Click to add points, double-click to finish the line'}
+                        {selectedType === 'polygon' && '👆 Click to add corners, double-click to finish the polygon'}
                     </div>
                 )}
             </div>
 
             <div
                 ref={addPopupRef}
+                className="map-popup"
                 style={{
                     display: showAddPopup ? 'block' : 'none',
                     position: 'absolute',
@@ -646,7 +625,7 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
                     {selectedType === 'point' && '📍'}
                     {selectedType === 'line' && '📏'}
                     {selectedType === 'polygon' && '⬛'}
-                    ➕ NEW {selectedType === 'point' ? 'POINT' : selectedType === 'line' ? 'LINE' : 'POLYGON'} ADD
+                    New {selectedType === 'point' ? 'Point' : selectedType === 'line' ? 'Line' : 'Polygon'}
                 </h3>
                 <form onSubmit={handleAddFeature}>
                     <input
@@ -708,6 +687,7 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
 
             <div
                 ref={editPopupRef}
+                className="map-popup"
                 style={{
                     display: showEditPopup ? 'block' : 'none',
                     position: 'absolute',
@@ -731,8 +711,8 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
                     {getFeatureType(editingFeature) === 'point' && '📍'}
                     {getFeatureType(editingFeature) === 'line' && '📏'}
                     {getFeatureType(editingFeature) === 'polygon' && '⬛'}
-                    ✏️ {getFeatureType(editingFeature) === 'point' ? 'POINT' :
-                        getFeatureType(editingFeature) === 'line' ? 'LINE' : 'POLYGON'} EDIT
+                    Edit {getFeatureType(editingFeature) === 'point' ? 'Point' :
+                        getFeatureType(editingFeature) === 'line' ? 'Line' : 'Polygon'}
                     {editingFeature && (
                         <span style={{
                             fontSize: '14px',
@@ -803,11 +783,12 @@ const PointMap = forwardRef(({ points = [], lines = [], polygons = [], onAdd, on
                 </form>
             </div>
 
-            <style jsx>{`
-                input:focus {
+            <style>{`
+                .map-popup input:focus {
                     border-color: ${COLORS.point} !important;
                 }
-                button:hover {
+                .map-popup button:hover,
+                .map-controls button:hover {
                     opacity: 0.9;
                     transform: translateY(-1px);
                 }

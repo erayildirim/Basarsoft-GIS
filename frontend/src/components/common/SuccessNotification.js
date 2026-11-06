@@ -1,5 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
-import COLORS from './COLORS';
+import React, { useState, useEffect } from 'react';
 
 const SuccessNotification = ({ message, isVisible, onClose, duration = 3000 }) => {
     const [show, setShow] = useState(false);
@@ -14,6 +13,7 @@ const SuccessNotification = ({ message, isVisible, onClose, duration = 3000 }) =
 
             return () => clearTimeout(timer);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible, message, duration]);
 
     const handleClose = () => {

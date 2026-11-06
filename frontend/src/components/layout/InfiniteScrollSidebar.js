@@ -1,4 +1,4 @@
-﻿// src/components/layout/InfiniteScrollSidebar.js
+// src/components/layout/InfiniteScrollSidebar.js
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchPagedGeometries } from '../../api/search-api';
 import COLORS from '../common/COLORS';
@@ -21,24 +21,27 @@ const InfiniteScrollSidebar = ({
     const [error, setError] = useState(null);
 
     const observerRef = useRef();
+    // Ignore responses that arrive after the user already switched to another type.
+    const currentTypeRef = useRef(selectedType);
+    currentTypeRef.current = selectedType;
     const pageSize = 15; // Items per page
 
     useEffect(() => {
-        console.log(`🔄 Resetting infinite scroll data for type: ${selectedType}, trigger: ${refreshTrigger}`);
         setItems([]);
         setPage(1);
         setHasMore(true);
         setError(null);
         loadInitialData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedType, refreshTrigger]);
 
     const loadInitialData = async () => {
+        const type = selectedType;
         setLoading(true);
         try {
-            const response = await fetchPagedGeometries[selectedType + 's'](1, pageSize);
+            const response = await fetchPagedGeometries[type + 's'](1, pageSize);
+            if (currentTypeRef.current !== type) return;
             const pagedData = response.data;
-
-            console.log(`📄 Loaded page 1 for ${selectedType}:`, pagedData);
 
             setItems(pagedData.data || []);
             setHasMore(pagedData.hasNextPage);
@@ -56,14 +59,13 @@ const InfiniteScrollSidebar = ({
     const loadMoreData = useCallback(async () => {
         if (loading || !hasMore) return;
 
-        console.log(`📄 Loading page ${page} for ${selectedType}`);
+        const type = selectedType;
         setLoading(true);
 
         try {
-            const response = await fetchPagedGeometries[selectedType + 's'](page, pageSize);
+            const response = await fetchPagedGeometries[type + 's'](page, pageSize);
+            if (currentTypeRef.current !== type) return;
             const pagedData = response.data;
-
-            console.log(`📄 Loaded page ${page} for ${selectedType}:`, pagedData.data.length, 'items');
 
             setItems(prev => [...prev, ...pagedData.data]);
             setHasMore(pagedData.hasNextPage);
@@ -83,7 +85,6 @@ const InfiniteScrollSidebar = ({
 
         observerRef.current = new IntersectionObserver(entries => {
             if (entries[0].isIntersecting && hasMore) {
-                console.log('🔽 Reached end, loading more...');
                 loadMoreData();
             }
         }, {
@@ -125,7 +126,7 @@ const InfiniteScrollSidebar = ({
                             fontSize: '12px'
                         }}
                     >
-                        Yeniden Dene
+                        Retry
                     </button>
                 </div>
             )}
@@ -154,7 +155,7 @@ const InfiniteScrollSidebar = ({
                         let coordsDisplay = null;
 
                         if (selectedType === 'point') {
-                            const match = item.wkt.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/);
+                            const match = item.wkt.match(/POINT\s*\(\s*([-\d.eE+]+)\s+([-\d.eE+]+)\s*\)/);
                             if (match) {
                                 const lon = parseFloat(match[1]).toFixed(6);
                                 const lat = parseFloat(match[2]).toFixed(6);
@@ -267,7 +268,6 @@ const InfiniteScrollSidebar = ({
                                         type="button"
                                         onClick={e => {
                                             e.stopPropagation();
-                                            console.log(`🗑️ Delete button clicked for ${selectedType} #${item.id}`);
                                             handleDelete(item.id, selectedType);
                                         }}
                                         style={{

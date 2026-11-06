@@ -1,9 +1,11 @@
-﻿import React from 'react';
+import React from 'react';
 import COLORS from '../common/COLORS';
 
 const TAB_STYLE = {
     flex: 1,
-    padding: '10px 16px',
+    minWidth: 0,
+    padding: '10px 8px',
+    whiteSpace: 'nowrap',
     backgroundColor: '#f3f4f6',
     border: 'none',
     borderRadius: 8,
@@ -42,6 +44,30 @@ const Header = ({
             borderBottom: `1px solid ${COLORS.border}`,
             backgroundColor: COLORS.cardBg
         }}>
+            {/* Brand */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                <div style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.polygon})`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 18
+                }}>
+                    🗺️
+                </div>
+                <div>
+                    <div style={{ fontWeight: 700, fontSize: 17, color: COLORS.text, lineHeight: 1.2 }}>
+                        Basarsoft GIS
+                    </div>
+                    <div style={{ fontSize: 12, color: COLORS.textSecondary }}>
+                        Points · Lines · Polygons
+                    </div>
+                </div>
+            </div>
+
             {error && (
                 <div style={{
                     backgroundColor: '#fee',
@@ -266,12 +292,12 @@ const Header = ({
                 lineHeight: 1.4
             }}>
                 <div style={{ fontWeight: 600, marginBottom: 4, color: COLORS.text }}>
-                    💡 Guide;
+                    💡 Guide
                 </div>
                 • Ctrl+F: Search<br />
                 • 1/2/3: Change Type<br />
                 • You can draw on the map or add manually<br />
-                • Scroll: Load more points
+                • Scroll the list to load more
             </div>
         </div>
     );

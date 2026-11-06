@@ -1,6 +1,26 @@
 import axios from 'axios';
 
-const API_BASE = 'https://localhost:7268/api';
+// In production the React build is served by the .NET API itself, so a relative URL works.
+// During development `npm start` proxies /api to the backend (see "proxy" in package.json).
+// Set REACT_APP_API_URL to point the UI at a backend hosted somewhere else.
+export const API_BASE = (process.env.REACT_APP_API_URL || '').replace(/\/$/, '') + '/api';
+
+/**
+ * Extracts a human readable message from an axios error. The API returns either
+ * { message }, a plain string, or an ASP.NET validation ProblemDetails object.
+ */
+export const getErrorMessage = (error, fallback = 'Something went wrong') => {
+    const data = error?.response?.data;
+    if (typeof data === 'string' && data.trim()) return data;
+    if (data?.message) return data.message;
+    if (data?.errors) {
+        const first = Object.values(data.errors).flat()[0];
+        if (first) return first;
+    }
+    if (data?.title) return data.title;
+    if (error?.request && !error?.response) return 'Cannot reach the server. Is the API running?';
+    return error?.message || fallback;
+};
 
 axios.interceptors.response.use(
     response => response,

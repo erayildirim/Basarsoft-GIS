@@ -1,12 +1,15 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { addManualGeometry } from '../../api/search-api';
+import { getErrorMessage } from '../../api/api';
 import COLORS from '../common/COLORS';
 
 const Modal = ({ isOpen, onClose, title, children }) => {
     if (!isOpen) return null;
 
     return (
-        <div style={{
+        <div
+            onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+            style={{
             position: 'fixed',
             top: 0,
             left: 0,
@@ -47,7 +50,9 @@ const Modal = ({ isOpen, onClose, title, children }) => {
                         {title}
                     </h2>
                     <button
+                        type="button"
                         onClick={onClose}
+                        aria-label="Close"
                         style={{
                             width: 36,
                             height: 36,
@@ -114,7 +119,7 @@ export const ManualPointModal = ({ isOpen, onClose, onSuccess }) => {
             onSuccess();
             onClose();
         } catch (err) {
-            setError(err.response?.data?.message || 'Error occurred while adding point');
+            setError(getErrorMessage(err, 'Error occurred while adding point'));
         } finally {
             setLoading(false);
         }
@@ -251,7 +256,7 @@ export const ManualPointModal = ({ isOpen, onClose, onSuccess }) => {
                             padding: '12px 24px',
                             border: 'none',
                             borderRadius: 8,
-                            backgroundColor: loading ? COLORS.border : COLORS.primary,
+                            backgroundColor: loading ? COLORS.border : COLORS.point,
                             color: 'white',
                             cursor: loading ? 'not-allowed' : 'pointer',
                             fontSize: '16px',
@@ -313,7 +318,7 @@ export const ManualLineModal = ({ isOpen, onClose, onSuccess }) => {
             onSuccess();
             onClose();
         } catch (err) {
-            setError(err.message || err.response?.data?.message || 'Error occurred while adding line');
+            setError(getErrorMessage(err, 'Error occurred while adding line'));
         } finally {
             setLoading(false);
         }
@@ -610,7 +615,7 @@ export const ManualPolygonModal = ({ isOpen, onClose, onSuccess }) => {
             onSuccess();
             onClose();
         } catch (err) {
-            setError(err.message || err.response?.data?.message || 'Error occurred while adding polygon');
+            setError(getErrorMessage(err, 'Error occurred while adding polygon'));
         } finally {
             setLoading(false);
         }

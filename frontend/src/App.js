@@ -1,9 +1,10 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     fetchAll,
     addGeometry,
     updateGeometry,
-    deleteGeometry
+    deleteGeometry,
+    getErrorMessage
 } from './api/api';
 
 import PointMap from './components/map/PointMap';
@@ -13,6 +14,7 @@ import SearchComponent from './components/search/SearchComponent';
 import SuccessNotification from './components/common/SuccessNotification';
 import { ManualPointModal, ManualLineModal, ManualPolygonModal } from './components/forms/ManualEntryModals';
 import COLORS from './components/common/COLORS';
+import './App.css';
 
 function App() {
     const mapRef = useRef();
@@ -21,7 +23,7 @@ function App() {
     const [points, setPoints] = useState([]);
     const [lines, setLines] = useState([]);
     const [polygons, setPolygons] = useState([]);
-    const [loading, setLoading] = useState({ point: true, line: true, polygon: true });
+    const [, setLoading] = useState({ point: true, line: true, polygon: true });
     const [selectedId, setSelectedId] = useState(null);
     const [error, setError] = useState(null);
 
@@ -30,6 +32,7 @@ function App() {
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [successMessage, setSuccessMessage] = useState('');
     const [showSuccess, setShowSuccess] = useState(false);
+    const [focusRequest, setFocusRequest] = useState(null);
 
     const titleMap = { point: 'Points', line: 'Lines', polygon: 'Polygons' };
     const iconMap = { point: '📍', line: '📏', polygon: '⬛' };
@@ -62,7 +65,8 @@ function App() {
 
     useEffect(() => {
         ['point', 'line', 'polygon'].forEach(type => fetchAllGeometries(type));
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // load once on mount
 
     const handleAdd = async (name, wkt) => {
         try {
@@ -75,7 +79,8 @@ function App() {
             showSuccessMessage(`${selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} "${name}" added successfully!`);
         } catch (err) {
             console.error(`Add ${selectedType} error:`, err);
-            setError(`Failed to add ${selectedType}`);
+            // Re-throw so the map popup stays open and shows the server's message.
+            throw err;
         }
     };
 
@@ -96,7 +101,8 @@ function App() {
             showSuccessMessage(`${actualType.charAt(0).toUpperCase() + actualType.slice(1)} "${name}" updated successfully!`);
         } catch (err) {
             console.error(`Update ${featureType || selectedType} error:`, err);
-            setError(`Failed to update ${featureType || selectedType}`);
+            // Re-throw so the edit popup stays open and shows the server's message.
+            throw err;
         }
     };
 
@@ -119,7 +125,7 @@ function App() {
 
                 setError(null);
 
-                showSuccessMessage(`${typeToDelete.charAt(0).toUpperCase() + typeToDelete.slice(1)} "${response.data.message || 'deleted successfully'}" `);
+                showSuccessMessage(`${typeToDelete.charAt(0).toUpperCase() + typeToDelete.slice(1)} #${id} deleted successfully.`);
 
                 console.log(`Successfully deleted ${typeToDelete} #${id}`);
 
@@ -135,7 +141,7 @@ function App() {
                     setRefreshTrigger(prev => prev + 1);
                     setError(null);
                 } else {
-                    setError(`Failed to delete ${typeToDelete}: ${err.response?.data?.message || err.message}`);
+                    setError(`Failed to delete ${typeToDelete}: ${getErrorMessage(err)}`);
                 }
             }
         }
@@ -153,13 +159,17 @@ function App() {
 
         setSelectedType(result.type);
         setSelectedId(result.id);
-
-        if (mapRef.current?.focusOnFeature) {
-            mapRef.current.focusOnFeature(result.type, result.id);
-        }
+        // Focus after the re-render: switching type clears the map selection first.
+        setFocusRequest({ type: result.type, id: result.id });
 
         setShowSearch(false);
     };
+
+    useEffect(() => {
+        if (focusRequest && mapRef.current?.focusOnFeature) {
+            mapRef.current.focusOnFeature(focusRequest.type, focusRequest.id);
+        }
+    }, [focusRequest]);
 
     const handleManualEntrySuccess = () => {
         console.log('Manual entry successful, refreshing data...');
@@ -204,7 +214,11 @@ function App() {
                 setShowSearch(false);
             }
 
-            if (!showSearch && !showManualEntry) {
+            // Don't hijack number keys while the user is typing (e.g. a name like "Route 2").
+            const tag = e.target?.tagName;
+            const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target?.isContentEditable;
+
+            if (!showSearch && !showManualEntry && !isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
                 if (e.key === '1') setSelectedType('point');
                 if (e.key === '2') setSelectedType('line');
                 if (e.key === '3') setSelectedType('polygon');
@@ -216,8 +230,8 @@ function App() {
     }, [showSearch, showManualEntry]);
 
     return (
-        <div style={{ display: 'flex', height: '100vh', backgroundColor: COLORS.background }}>
-            <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+        <div className="app-layout" style={{ backgroundColor: COLORS.background }}>
+            <div className="app-map">
                 <PointMap
                     ref={mapRef}
                     points={points}
@@ -237,6 +251,7 @@ function App() {
 
                 {!showSearch && (
                     <button
+                        className="search-toggle"
                         onClick={() => setShowSearch(true)}
                         style={{
                             position: 'absolute',
@@ -264,13 +279,9 @@ function App() {
                 )}
             </div>
 
-            <div style={{
-                width: 380,
+            <div className="app-sidebar" style={{
                 backgroundColor: COLORS.cardBg,
-                boxShadow: `-4px 0 24px ${COLORS.shadow}`,
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden'
+                boxShadow: `-4px 0 24px ${COLORS.shadow}`
             }}>
                 <Header
                     selectedType={selectedType}

@@ -1,6 +1,5 @@
 import axios from 'axios';
-
-const API_BASE = 'https://localhost:7268/api';
+import { API_BASE } from './api';
 
 export const searchGeometries = async (searchTerm, geometryType = null, maxResults = 20) => {
     try {

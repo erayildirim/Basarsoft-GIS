@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { searchGeometries } from '../../api/search-api';
 import COLORS from '../common/COLORS';
 
@@ -13,8 +13,7 @@ const SearchComponent = ({ onResultSelect, onClose }) => {
     const searchRef = useRef(null);
     const resultsRef = useRef(null);
 
-    const debouncedSearch = useCallback(
-        debounce(async (term, filter) => {
+    const debouncedSearch = useMemo(() => debounce(async (term, filter) => {
             if (term.trim().length < 2) {
                 setResults([]);
                 setShowResults(false);
@@ -33,9 +32,7 @@ const SearchComponent = ({ onResultSelect, onClose }) => {
             } finally {
                 setLoading(false);
             }
-        }, 300),
-        []
-    );
+        }, 300), []);
 
     useEffect(() => {
         if (searchTerm.trim()) {
@@ -70,11 +67,12 @@ const SearchComponent = ({ onResultSelect, onClose }) => {
                 setShowResults(false);
                 setSelectedIndex(-1);
                 break;
+            default:
+                break;
         }
     };
 
     const handleResultClick = (result) => {
-        console.log('Search result clicked:', result);
         setSearchTerm(result.name);
         setShowResults(false);
         setSelectedIndex(-1);
@@ -295,7 +293,7 @@ const SearchComponent = ({ onResultSelect, onClose }) => {
                                                 {result.type === 'line' && 'Line'}
                                                 {result.type === 'polygon' && 'Polygon'}
                                                 {' #'}{result.id}
-                                                {result.centerX && result.centerY && (
+                                                {result.centerX != null && result.centerY != null && (
                                                     <span style={{ marginLeft: 8 }}>
                                                         📌 {result.centerX.toFixed(6)}, {result.centerY.toFixed(6)}
                                                     </span>
